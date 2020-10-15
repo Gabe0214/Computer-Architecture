@@ -7,6 +7,11 @@ HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
 MUL = 0b10100010
+PUSH = 0b01000101
+POP = 0b01000110
+RET = 0b00010001
+CALL = 0b01010000
+ADD = 0b10100000
 
 class CPU:
     """Main CPU class."""
@@ -17,7 +22,19 @@ class CPU:
         self.ram = [0] * 256
         self.pc = 0
         self.halted = False
-        self.reg[7] = 0xF4
+
+        self.sp = 7
+        self.branch_table = {
+            HLT : self.HLT,
+            LDI : self.LDI,
+            PRN : self.PRN,
+            MUL: self.MUL,
+            PUSH: self.PUSH,
+            POP: self.POP,
+            RET: self.RET,
+            CALL: self.CALL,
+            ADD: self.ADD
+        }
 
     def ram_read(self, address):
         # print(self.ram)
@@ -79,8 +96,7 @@ class CPU:
         #elif op == "SUB": etc
 
         elif op == "MUL":
-            sum = self.reg[reg_a] * self.reg[reg_b]
-            self.reg[reg_a] = sum
+            self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -104,28 +120,78 @@ class CPU:
 
         print()
 
+    def PRN(self,operand_a, operand_b=None):
+        print(self.reg[operand_a])
+        self.pc += 2
+
+    def LDI(self,operand_a, operand_b):
+
+        self.reg[operand_a] = operand_b
+        self.pc += 3
+
+    def HLT(self, operand_a=None, operand_b=None):
+        self.halted = True
+
+    def MUL(self,operand_a, operand_b):
+        self.alu('MUL', operand_a, operand_b)
+        self.pc += 3
+
+    def PUSH(self, opernad_a=None, operand_b=None):
+        self.sp -= 1
+        self.reg[self.sp] = self.reg[self.ram[self.pc + 1]]
+        self.pc += 2
+
+    def POP(self, operand_a=None, operand_b=None):
+
+        self.reg[self.ram[self.pc + 1]] = self.reg[self.sp]
+
+        self.sp += 1
+
+        self.pc += 2
+
+    def CALL(self, operand_a=None, operand_b=None):
+        return_addr = self.pc + 2
+
+        self.sp -= 1
+        self.ram[self.sp] = return_addr
+        reg_num = self.ram[self.pc + 1]
+        subrountine_addr = self.reg[reg_num]
+
+        self.pc = subrountine_addr
+
+    def pop_val(self):
+        top_stack = self.sp
+        value = self.ram[top_stack]
+
+        self.sp += 1
+
+        return value
+
+    def RET(self, operand_a=None, operand_b =None):
+        return_addr = self.pop_val()
+
+        self.pc = return_addr
+
+    def ADD(self, operand_a, operand_b):
+        # operand_a = self.ram_read(self.pc + 1)
+        # operand_b = self.ram_read(self.pc + 2)
+
+        self.alu('ADD', operand_a, operand_b)
+
+        self.pc += 3
+        pass
+
+
+
+
     def run(self):
         """Run the CPU."""
-        counter = 0
+
         while not self.halted:
             instruction_to_execute = self.ram_read(self.pc)
             operand_a = self.ram_read(self.pc + 1)
-            operand_b = self.ram_read(self.pc + 2)
-            # print(counter, 'a', 'b', operand_b)
-
-            if instruction_to_execute == HLT:
-                self.halted = True
-                self.pc += 1
-                counter += 1
-            elif instruction_to_execute == PRN:
-                print(self.reg[operand_a])
-                self.pc += 2
-            elif instruction_to_execute == LDI:
-                self.reg[operand_a] = operand_b
-                self.pc += 3
-            elif instruction_to_execute == MUL:
-                self.alu('MUL',operand_a, operand_b)
-                self.pc += 3
+            operand_b = self.ram_read(self.pc +2)
+            self.branch_table[instruction_to_execute](operand_a, operand_b)
 
 
 
